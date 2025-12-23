@@ -78,17 +78,7 @@ export default defineConfig({
   mode: 'production',
   base: './',
   plugins: [
-    ${hasReact ? `react({
-      jsxRuntime: 'automatic', 
-      // Force production runtime even if code tries to import dev
-      jsxImportSource: 'react',
-      include: /.*\\.(jsx|tsx|js|ts)$/,
-      babel: {
-        babelrc: false,
-        configFile: false,
-        plugins: []
-      }
-    }),` : ''}
+    ${hasReact ? `react(),` : ''}
   ],
   resolve: {
     alias: {
@@ -159,9 +149,7 @@ export const tsConfig = JSON.stringify({
     "module": "es2020",
     "moduleResolution": "node",
     "lib": ["es2020", "dom"],
-    "jsx": "react",
-    "jsxFactory": "Devvit.createElement",
-    "jsxFragmentFactory": "Devvit.Fragment",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
