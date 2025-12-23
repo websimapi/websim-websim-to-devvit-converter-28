@@ -18,12 +18,45 @@ export class AssetAnalyzer {
         this.dependencies = {};
         this.globalShims = new Set();
         this.hasTailwind = false;
+        this.renames = new Map(); // Original relative path -> New relative path
+    }
+
+    // Pre-scan to find files that need .jsx extension
+    detectRenames(assets) {
+        for (const [path, content] of Object.entries(assets)) {
+            if (path.endsWith('.js')) {
+                const code = uint8ToString(content);
+                // Broad JSX detection including standard elements and common patterns
+                if (/<[A-Z][A-Za-z0-9]*[\s>]/g.test(code) || 
+                    /className=/g.test(code) || 
+                    /<>\s*</.test(code) || 
+                    /React\.createElement/g.test(code)) {
+                    this.renames.set(path, path.replace(/\.js$/, '.jsx'));
+                }
+            }
+        }
     }
 
     // Detects libraries and converts CDN URLs to NPM package names
     // Returns: Clean import source (e.g., 'three')
-    normalizeImport(source) {
+    normalizeImport(source, currentFile = '') {
         if (!source || typeof source !== 'string') return source;
+
+        // Fix local renames (.js -> .jsx)
+        if (source.startsWith('.') && source.endsWith('.js')) {
+            const parts = currentFile.split('/');
+            parts.pop();
+            const currentDir = parts.join('/');
+            
+            // Resolve relative path to find if it was renamed
+            const cleanSource = source.replace(/^\.\//, '');
+            const targetPath = currentDir ? `${currentDir}/${cleanSource}` : cleanSource;
+            
+            if (this.renames.has(targetPath)) {
+                return source.replace(/\.js$/, '.jsx');
+            }
+        }
+
         if (source.startsWith('.') || source.startsWith('/') || source.startsWith('data:') || source.startsWith('blob:')) return source;
 
         // 1. Remotion Handling
@@ -157,7 +190,7 @@ export class AssetAnalyzer {
             
             const rewrite = (node) => {
                 if (node.source && node.source.value) {
-                    const newVal = this.normalizeImport(node.source.value);
+                    const newVal = this.normalizeImport(node.source.value, filename);
                     if (newVal !== node.source.value) {
                         magic.overwrite(node.source.start, node.source.end, JSON.stringify(newVal));
                         hasChanges = true;
@@ -208,7 +241,7 @@ export class AssetAnalyzer {
                 const prefix = match[1] || match[4] || match[7] || match[10];
                 
                 if (url) {
-                    const newVal = this.normalizeImport(url);
+                    const newVal = this.normalizeImport(url, filename);
                     if (newVal !== url) {
                         const start = match.index + prefix.length;
                         const end = start + url.length;
@@ -304,7 +337,15 @@ export class AssetAnalyzer {
 
             // Case B: Local Script
             if (srcMatch) {
-                let newTag = match;
+                let src = srcMatch[1];
+                const cleanSrc = src.replace(/^\.\//, '');
+                
+                // Update reference if target was renamed from .js to .jsx
+                if (this.renames.has(cleanSrc)) {
+                    src = src.replace(cleanSrc, this.renames.get(cleanSrc));
+                }
+
+                let newTag = match.replace(srcMatch[1], src);
                 if (!attrs.includes('type="module"')) {
                     if (attrs.includes('type=')) {
                         newTag = newTag.replace(/type=["'](text\/javascript|application\/javascript)["']/i, 'type="module"');

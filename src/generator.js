@@ -34,13 +34,17 @@ export async function generateDevvitZip(projectMeta, assets, includeReadme = tru
     const analyzer = new AssetAnalyzer();
     const clientFiles = {};
 
+    // 0. Pre-scan for Renames (.js -> .jsx)
+    analyzer.detectRenames(assets);
+
     // 1. Process Assets
     for (const [path, content] of Object.entries(assets)) {
         if (path.includes('..')) continue;
+        const finalPath = analyzer.renames.get(path) || path;
 
         if (/\.(js|mjs|ts|jsx|tsx)$/i.test(path)) {
             const processed = analyzer.processJS(content, path);
-            clientFiles[path] = processed;
+            clientFiles[finalPath] = processed;
         } else if (path.endsWith('.html')) {
             const { html, extractedScripts } = analyzer.processHTML(content, path.split('/').pop());
             clientFiles[path] = html;

@@ -82,7 +82,7 @@ export default defineConfig({
       jsxRuntime: 'automatic', 
       // Force production runtime even if code tries to import dev
       jsxImportSource: 'react',
-      include: "**/*.{jsx,tsx,js,ts}",
+      include: /.*\\.(jsx|tsx|js|ts)$/,
       babel: {
         babelrc: false,
         configFile: false,
